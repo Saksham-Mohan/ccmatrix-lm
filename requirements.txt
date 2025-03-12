@@ -1,0 +1,12 @@
+tensorflow-macos
+tensorflow-metal
+tokenizers==0.21.0
+transformers==4.49.0
+datasets>=3.3.2
+tensorboard==2.16.2
+pyyaml>=6.0.1
+tqdm>=4.65.0
+sentencepiece>=0.1.99
+numpy>=1.26.0
+pandas>=2.1.0
+requests>=2.32.0
