@@ -16,8 +16,8 @@ def save_checkpoint(model, optimizer, epoch, checkpoint_path):
     os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
     
     try:
-        # Instead of saving just weights, save the entire model
-        model_path = f"{checkpoint_path}_model"
+        # Add proper .keras extension for model saving
+        model_path = f"{checkpoint_path}_model.keras"
         model.save(model_path)
         logger.info(f"Saved model to {model_path}")
         
@@ -46,10 +46,18 @@ def load_checkpoint(model, optimizer, checkpoint_path):
     """Load model and optimizer from checkpoint."""
     try:
         # Load model from saved model
-        model_path = f"{checkpoint_path}_model"
+        model_path = f"{checkpoint_path}_model.keras"
         if os.path.exists(model_path):
             model.load_weights(model_path)
             logger.info(f"Loaded model weights from {model_path}")
+        else:
+            # Try the old path format as fallback
+            legacy_model_path = f"{checkpoint_path}_model"
+            if os.path.exists(legacy_model_path):
+                model.load_weights(legacy_model_path)
+                logger.info(f"Loaded model weights from {legacy_model_path}")
+            else:
+                logger.warning(f"No model weights found at {model_path} or {legacy_model_path}")
         
         # Load optimizer state if it exists
         optimizer_path = f"{checkpoint_path}_optimizer.npy"
