@@ -140,9 +140,10 @@ def validate(model, dataset, loss_metric, perplexity_metric):
         logits = model(inputs, training=False)
         loss = compute_loss(targets, logits)
         
-        # Update metrics
-        loss_metric.update_state(loss)
-        perplexity_metric.update_state(targets, logits)
+        perplexity = tf.exp(loss)
+        
+        loss_metric.update_state([loss], None)
+        perplexity_metric.update_state([perplexity], None)
 
 def create_tf_dataset(encoded_file, batch_size, sequence_length, shuffle_buffer=None):
     """Create a TensorFlow dataset from encoded file."""
