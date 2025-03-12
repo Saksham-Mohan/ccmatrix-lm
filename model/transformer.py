@@ -180,11 +180,9 @@ class PerplexityMetric(tf.keras.metrics.Mean):
     
     def update_state(self, y_true, y_pred, sample_weight=None):
         """Update perplexity state with cross entropy loss."""
-        # Use tf.nn.sparse_softmax_cross_entropy_with_logits for consistency
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
             labels=y_true, logits=y_pred
         )
         perplexity = tf.exp(tf.reduce_mean(cross_entropy))
-        
-        # Update metric state with the perplexity value
-        super().update_state(perplexity, sample_weight)
+    
+        super().update_state([perplexity], sample_weight)
