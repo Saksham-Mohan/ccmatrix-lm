@@ -1,0 +1,9 @@
+# Model configuration
+
+# Model architecture
+d_model: 512       # Embedding dimension
+num_heads: 8       # Number of attention heads
+num_layers: 6      # Number of transformer layers
+d_ff: 2048         # Dimension of feed-forward network
+dropout_rate: 0.1  # Dropout rate
+max_len: 5000      # Maximum sequence length for positional encoding

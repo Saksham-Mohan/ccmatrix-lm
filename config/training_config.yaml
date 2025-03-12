@@ -1,0 +1,15 @@
+# Training configuration
+
+# Data parameters
+sequence_length: 512      # Length of sequences for training
+batch_size: 64            # Batch size
+shuffle_buffer: 10000     # Size of shuffle buffer
+
+# Training parameters
+epochs: 20                # Number of training epochs
+learning_rate: 0.0001     # Learning rate
+use_lr_schedule: true     # Whether to use learning rate schedule
+warmup_steps: 4000        # Warmup steps for learning rate schedule
+
+# Evaluation
+eval_every_n_steps: 1000  # Evaluate model every n steps

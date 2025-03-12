@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# Data files
+data/raw/
+data/processed/
+*.bin
+*.h5
+*.model
+*.weights.h5
+*.tfrecord
+*.npy
+*.npz
+*.tar
+*.tar.gz
+*.zip
+*.txt
+*.encoded
+*.train
+*.val
+
+# Log files
+logs/
+*.log
+tensorboard_logs/
+
+# Checkpoints
+checkpoints/
+*.ckpt
+*.pt
+model_*.weights.h5
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific files
+.DS_Store
+Thumbs.db
+EOF
