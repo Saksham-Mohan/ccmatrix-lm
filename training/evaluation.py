@@ -75,7 +75,7 @@ def compute_perplexity(model, inputs, targets):
     """Compute perplexity for a batch of inputs."""
     logits = model(inputs, training=False)
     loss = tf.keras.losses.sparse_categorical_crossentropy(
-        targets, logits, from_logits=True, reduction='none'
+        targets, logits
     )
     return tf.exp(tf.reduce_mean(loss))
 
