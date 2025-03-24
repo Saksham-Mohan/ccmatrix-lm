@@ -12,16 +12,13 @@ logger = logging.getLogger(__name__)
 
 def save_checkpoint(model, optimizer, epoch, checkpoint_path):
     """Save model and optimizer checkpoint."""
-    # Create directory if it doesn't exist
     os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
     
     try:
-        # Add proper .keras extension for model saving
         model_path = f"{checkpoint_path}_model.keras"
         model.save(model_path)
         logger.info(f"Saved model to {model_path}")
         
-        # Save optimizer state if possible
         try:
             optimizer_path = f"{checkpoint_path}_optimizer.npy"
             optimizer_weights = optimizer.get_weights()
@@ -30,7 +27,6 @@ def save_checkpoint(model, optimizer, epoch, checkpoint_path):
         except Exception as e:
             logger.warning(f"Could not save optimizer state: {e}")
         
-        # Save epoch info
         epoch_path = f"{checkpoint_path}_epoch.txt"
         with open(epoch_path, 'w') as f:
             f.write(str(epoch))
