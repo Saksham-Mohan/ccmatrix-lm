@@ -25,7 +25,7 @@ ccmatrix-lm/
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/ccmatrix-lm.git
+git clone https://github.com/saksham-mohan/ccmatrix-lm.git
 cd ccmatrix-lm
 ```
 
