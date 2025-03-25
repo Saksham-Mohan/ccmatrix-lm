@@ -12,6 +12,7 @@ import tensorflow as tf
 import yaml
 import sys
 from pathlib import Path
+from datetime import datetime
 
 # Import local modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,6 +24,30 @@ from utils.checkpointing import save_checkpoint, load_checkpoint
 
 # Setup logging
 logger = setup_logging(__name__)
+
+def setup_training_logging(args):
+    """Set up logging to both console and file."""
+    # Create logs directory if it doesn't exist
+    os.makedirs("logs", exist_ok=True)
+    
+    # Create a unique log filename with timestamp and language
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"logs/training_{args.lang}_{timestamp}.log"
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_filename),
+            logging.StreamHandler()
+        ]
+    )
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logging to {log_filename}")
+    
+    return logger, log_filename
 
 def load_config(config_path):
     """Load configuration from YAML file."""
@@ -188,8 +213,11 @@ def create_tf_dataset(encoded_file, batch_size, sequence_length, shuffle_buffer=
     
     return dataset, num_examples
 
-def train(args):
+def train(args, custom_logger=None):
     """Main training function."""
+    # Use the passed custom logger if available, otherwise use the default one
+    log = custom_logger if custom_logger is not None else logger
+    
     # Load configurations
     model_config = load_config(args.model_config)
     training_config = load_config(args.training_config)
@@ -214,7 +242,7 @@ def train(args):
             )
             wandb_available = True
         except ImportError:
-            logger.warning("wandb not available, continuing without it")
+            log.warning("wandb not available, continuing without it")
             wandb_available = False
     else:
         wandb_available = False
@@ -222,19 +250,19 @@ def train(args):
     # Load tokenizer and get vocab size
     tokenizer = load_tokenizer(args.tokenizer_path)
     vocab_size = tokenizer.get_vocab_size()
-    logger.info(f"Loaded tokenizer with vocabulary size: {vocab_size}")
+    log.info(f"Loaded tokenizer with vocabulary size: {vocab_size}")
     
     # Load or create encoded data
     train_encoded_file = args.train_encoded_file or os.path.join(args.data_dir, f"ccmatrix.{args.lang}.train")
     val_encoded_file = args.val_encoded_file or os.path.join(args.data_dir, f"ccmatrix.{args.lang}.val")
     
     if not (os.path.exists(train_encoded_file) and os.path.exists(val_encoded_file)):
-        logger.error(f"Encoded files not found: {train_encoded_file} and {val_encoded_file}")
-        logger.error("Please run the dataset creation step first.")
+        log.error(f"Encoded files not found: {train_encoded_file} and {val_encoded_file}")
+        log.error("Please run the dataset creation step first.")
         sys.exit(1)
     
     # Create TF datasets
-    logger.info("Creating TensorFlow datasets...")
+    log.info("Creating TensorFlow datasets...")
     
     # Create the datasets
     sequence_length = training_config.get('sequence_length', 512)
@@ -255,19 +283,19 @@ def train(args):
         shuffle_buffer=None
     )
     
-    logger.info(f"Created training dataset with {train_examples} examples")
-    logger.info(f"Created validation dataset with {val_examples} examples")
+    log.info(f"Created training dataset with {train_examples} examples")
+    log.info(f"Created validation dataset with {val_examples} examples")
     
     # Calculate steps per epoch and validation steps
     steps_per_epoch = max(1, train_examples // training_config['batch_size'])
     validation_steps = max(1, val_examples // training_config['batch_size'])
     
-    logger.info(f"Steps per epoch: {steps_per_epoch}")
-    logger.info(f"Validation steps: {validation_steps}")
+    log.info(f"Steps per epoch: {steps_per_epoch}")
+    log.info(f"Validation steps: {validation_steps}")
     
     # If we don't have enough validation data, adjust the batch size
     if val_examples < training_config['batch_size']:
-        logger.warning(f"Not enough validation data for a full batch. Using smaller batch for validation.")
+        log.warning(f"Not enough validation data for a full batch. Using smaller batch for validation.")
         val_batch_size = max(1, val_examples)
         val_dataset, val_examples = create_tf_dataset(
             val_encoded_file,
@@ -303,7 +331,7 @@ def train(args):
     start_epoch = 0
     if args.checkpoint_path and os.path.exists(args.checkpoint_path):
         start_epoch = load_checkpoint(model, optimizer, args.checkpoint_path)
-        logger.info(f"Loaded checkpoint from {args.checkpoint_path}, starting from epoch {start_epoch}")
+        log.info(f"Loaded checkpoint from {args.checkpoint_path}, starting from epoch {start_epoch}")
     
     # Define distributed train step - remove @tf.function decorator for debugging
     # @tf.function
@@ -325,14 +353,14 @@ def train(args):
     if args.tensorboard:
         tb_dir = os.path.join(args.log_dir, f"{args.lang}_{int(time.time())}")
         summary_writer = tf.summary.create_file_writer(tb_dir)
-        logger.info(f"TensorBoard logs will be saved to {tb_dir}")
+        log.info(f"TensorBoard logs will be saved to {tb_dir}")
     
     # Create checkpoint directory if it doesn't exist
     if args.checkpoint_dir:
         os.makedirs(args.checkpoint_dir, exist_ok=True)
     
     # Training loop
-    logger.info(f"Starting training for {training_config['epochs']} epochs")
+    log.info(f"Starting training for {training_config['epochs']} epochs")
     best_val_loss = float('inf')
     
     for epoch in range(start_epoch, training_config['epochs']):
@@ -351,7 +379,7 @@ def train(args):
             if step % 100 == 0:
                 current_loss = train_loss.result()
                 current_perplexity = train_perplexity.result()
-                logger.info(f"Epoch {epoch+1}, Step {step}, Loss: {current_loss:.4f}, Perplexity: {current_perplexity:.4f}")
+                log.info(f"Epoch {epoch+1}, Step {step}, Loss: {current_loss:.4f}, Perplexity: {current_perplexity:.4f}")
                 
                 # Log to wandb if enabled
                 if wandb_available:
@@ -374,7 +402,7 @@ def train(args):
             # Skip validation if no validation steps
             val_loss_result = 0.0
             val_perplexity_result = 0.0
-            logger.warning("Skipping validation due to insufficient validation data.")
+            log.warning("Skipping validation due to insufficient validation data.")
         
         # Compute epoch results
         train_loss_result = train_loss.result().numpy()
@@ -382,9 +410,9 @@ def train(args):
         
         # Log epoch results
         epoch_time = time.time() - start_time
-        logger.info(f"Epoch {epoch+1} completed in {epoch_time:.2f}s")
-        logger.info(f"  Train Loss: {train_loss_result:.4f}, Train Perplexity: {train_perplexity_result:.4f}")
-        logger.info(f"  Val Loss: {val_loss_result:.4f}, Val Perplexity: {val_perplexity_result:.4f}")
+        log.info(f"Epoch {epoch+1} completed in {epoch_time:.2f}s")
+        log.info(f"  Train Loss: {train_loss_result:.4f}, Train Perplexity: {train_perplexity_result:.4f}")
+        log.info(f"  Val Loss: {val_loss_result:.4f}, Val Perplexity: {val_perplexity_result:.4f}")
         
         # Log to wandb if enabled
         if wandb_available:
@@ -409,7 +437,7 @@ def train(args):
         if args.checkpoint_dir:
             checkpoint_path = os.path.join(args.checkpoint_dir, f"epoch_{epoch+1}")
             save_checkpoint(model, optimizer, epoch+1, checkpoint_path)
-            logger.info(f"Saved checkpoint to {checkpoint_path}")
+            log.info(f"Saved checkpoint to {checkpoint_path}")
         
         # Save best model
         if val_loss_result < best_val_loss:
@@ -417,9 +445,9 @@ def train(args):
             if args.checkpoint_dir:
                 best_model_path = os.path.join(args.checkpoint_dir, "best_model")
                 save_checkpoint(model, optimizer, epoch+1, best_model_path)
-                logger.info(f"Saved best model to {best_model_path}")
+                log.info(f"Saved best model to {best_model_path}")
         
-    logger.info("Training completed!")
+    log.info("Training completed!")
     
     # Log final metrics to wandb if enabled
     if wandb_available:
@@ -432,8 +460,11 @@ def train(args):
     
     return model
 
-def train_with_keras_fit(args):
+def train_with_keras_fit(args, custom_logger=None):
     """Train using Keras model.fit() API instead of custom training loop."""
+    # Use the passed custom logger if available, otherwise use the default one
+    log = custom_logger if custom_logger is not None else logger
+    
     # Load configurations
     model_config = load_config(args.model_config)
     training_config = load_config(args.training_config)
@@ -441,19 +472,19 @@ def train_with_keras_fit(args):
     # Load tokenizer and get vocab size
     tokenizer = load_tokenizer(args.tokenizer_path)
     vocab_size = tokenizer.get_vocab_size()
-    logger.info(f"Loaded tokenizer with vocabulary size: {vocab_size}")
+    log.info(f"Loaded tokenizer with vocabulary size: {vocab_size}")
     
     # Load or create encoded data
     train_encoded_file = args.train_encoded_file or os.path.join(args.data_dir, f"ccmatrix.{args.lang}.train")
     val_encoded_file = args.val_encoded_file or os.path.join(args.data_dir, f"ccmatrix.{args.lang}.val")
     
     if not (os.path.exists(train_encoded_file) and os.path.exists(val_encoded_file)):
-        logger.error(f"Encoded files not found: {train_encoded_file} and {val_encoded_file}")
-        logger.error("Please run the dataset creation step first.")
+        log.error(f"Encoded files not found: {train_encoded_file} and {val_encoded_file}")
+        log.error("Please run the dataset creation step first.")
         sys.exit(1)
     
     # Create TF datasets
-    logger.info("Creating TensorFlow datasets...")
+    log.info("Creating TensorFlow datasets...")
     sequence_length = training_config.get('sequence_length', 512)
     batch_size = training_config.get('batch_size', 32)
     
@@ -492,7 +523,7 @@ def train_with_keras_fit(args):
     steps_per_epoch = train_examples // batch_size
     validation_steps = max(1, val_examples // batch_size)
     
-    logger.info(f"Training with {steps_per_epoch} steps per epoch and {validation_steps} validation steps")
+    log.info(f"Training with {steps_per_epoch} steps per epoch and {validation_steps} validation steps")
     
     # Create a simpler model for testing
     model = create_simple_lm(vocab_size, d_model=128)
@@ -516,7 +547,7 @@ def train_with_keras_fit(args):
             write_graph=True
         )
         callbacks.append(tb_callback)
-        logger.info(f"TensorBoard logs will be saved to {tb_dir}")
+        log.info(f"TensorBoard logs will be saved to {tb_dir}")
     
     # Add model checkpoint callback
     if args.checkpoint_dir:
@@ -530,7 +561,7 @@ def train_with_keras_fit(args):
         callbacks.append(checkpoint_callback)
     
     # Train the model
-    logger.info("Starting training with model.fit()...")
+    log.info("Starting training with model.fit()...")
     model.fit(
         train_dataset,
         epochs=training_config.get('epochs', 20),
@@ -540,7 +571,7 @@ def train_with_keras_fit(args):
         callbacks=callbacks
     )
     
-    logger.info("Training completed!")
+    log.info("Training completed!")
     return model
 
 def load_tokenizer(tokenizer_path):
@@ -584,17 +615,23 @@ def main():
     
     args = parser.parse_args()
     
+    # Set up custom logging for this training run
+    custom_logger, log_file = setup_training_logging(args)
+    
     # Check for input file
     if not args.input_file and not (args.train_encoded_file and args.val_encoded_file):
         args.input_file = os.path.join(args.data_dir, f"ccmatrix.{args.lang}.processed.txt")
         if not os.path.exists(args.input_file):
+            custom_logger.error(f"Input file not found: {args.input_file}. Please provide --input_file or --train_encoded_file and --val_encoded_file.")
             parser.error(f"Input file not found: {args.input_file}. Please provide --input_file or --train_encoded_file and --val_encoded_file.")
     
     # Train the model using the selected approach
     if args.use_fit:
-        train_with_keras_fit(args)
+        train_with_keras_fit(args, custom_logger)
     else:
-        train(args)
+        train(args, custom_logger)
+        
+    custom_logger.info(f"Training complete. Log saved to: {log_file}")
 
 if __name__ == "__main__":
     main()
