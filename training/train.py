@@ -25,6 +25,41 @@ from utils.checkpointing import save_checkpoint, load_checkpoint
 # Setup logging
 logger = setup_logging(__name__)
 
+
+# Add this code at the top of your train.py, after the imports
+def setup_simple_logging(lang):
+    """Set up simple file logging that works reliably."""
+    import os
+    import time
+    from datetime import datetime
+    
+    # Create logs directory if it doesn't exist
+    os.makedirs("logs", exist_ok=True)
+    
+    # Create log filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = f"logs/training_{lang}_{timestamp}.log"
+    
+    # Create and open the log file
+    log_file = open(log_filename, 'w')
+    
+    # Create simple logging functions
+    def log_info(message):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        formatted_message = f"{timestamp} - INFO - {message}\n"
+        print(formatted_message, end='')
+        log_file.write(formatted_message)
+        log_file.flush()  # Force writing to disk
+    
+    def log_error(message):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        formatted_message = f"{timestamp} - ERROR - {message}\n"
+        print(formatted_message, end='')
+        log_file.write(formatted_message)
+        log_file.flush()  # Force writing to disk
+    
+    return log_info, log_error, log_filename
+
 def setup_training_logging(args):
     """Set up logging to both console and file."""
     # Create logs directory if it doesn't exist
@@ -615,23 +650,57 @@ def main():
     
     args = parser.parse_args()
     
-    # Set up custom logging for this training run
-    custom_logger, log_file = setup_training_logging(args)
+    # Set up simple logging that will definitely work
+    log_info, log_error, log_filename = setup_simple_logging(args.lang)
+    
+    # Write test log entries to confirm logging works
+    log_info("Starting training run")
+    log_info(f"Language: {args.lang}")
+    log_info(f"TensorBoard: {args.tensorboard}")
     
     # Check for input file
     if not args.input_file and not (args.train_encoded_file and args.val_encoded_file):
         args.input_file = os.path.join(args.data_dir, f"ccmatrix.{args.lang}.processed.txt")
         if not os.path.exists(args.input_file):
-            custom_logger.error(f"Input file not found: {args.input_file}. Please provide --input_file or --train_encoded_file and --val_encoded_file.")
+            log_error(f"Input file not found: {args.input_file}. Please provide --input_file or --train_encoded_file and --val_encoded_file.")
             parser.error(f"Input file not found: {args.input_file}. Please provide --input_file or --train_encoded_file and --val_encoded_file.")
+    
+    # Create a SimpleLogger class that mimics the Logger interface but uses our simple functions
+    class SimpleLogger:
+        def __init__(self, info_func, error_func):
+            self.info = info_func
+            self.error = error_func
+            self.warning = info_func
+        
+    simple_logger = SimpleLogger(log_info, log_error)
     
     # Train the model using the selected approach
     if args.use_fit:
-        train_with_keras_fit(args, custom_logger)
+        train_with_keras_fit(args, simple_logger)
     else:
-        train(args, custom_logger)
-        
-    custom_logger.info(f"Training complete. Log saved to: {log_file}")
+        train(args, simple_logger)
+    
+    # Log final information
+    log_info("Training complete!")
+    log_info(f"Log saved to: {log_filename}")
+    
+    # Run visualization if the visualization script exists
+    viz_script = "visualization/plot_metrics.py"
+    if os.path.exists(viz_script):
+        try:
+            log_info("Running visualization script...")
+            from datetime import datetime
+            import subprocess
+            viz_output_dir = f"plots/training_{args.lang}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            subprocess.run([
+                "python", 
+                viz_script, 
+                f"--log_file={log_filename}", 
+                f"--output_dir={viz_output_dir}"
+            ])
+            log_info(f"Visualization complete. Plots saved to: {viz_output_dir}")
+        except Exception as e:
+            log_error(f"Error running visualization script: {e}")
 
 if __name__ == "__main__":
     main()
